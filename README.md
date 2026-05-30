@@ -1,10 +1,5 @@
 # Computational Finance Lab
 
-A modular Python project for computational finance and stochastic modelling.
-
-
-# Computational Finance Lab
-
 `comp_fin_lab` is a modular Python package for computational finance, derivative pricing, and stochastic modelling.
 
 The project started from verified computational finance implementations and refactors them into a reusable Python package. The goal is to preserve mathematically checked course implementations while making them usable as importable modules in future research, modelling, and portfolio projects.
