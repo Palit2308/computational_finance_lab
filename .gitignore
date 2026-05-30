@@ -22,3 +22,11 @@ myenv/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Package build metadata
+*.egg-info/
+dist/
+build/
+
+# Test/cache files
+.pytest_cache/
