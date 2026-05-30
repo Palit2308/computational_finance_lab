@@ -1,0 +1,34 @@
+Metadata-Version: 2.4
+Name: comp_fin_lab
+Version: 0.1.0
+Summary: A modular Python library for computational finance and stochastic modelling.
+Author: Biswajit Palit
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: numpy
+Requires-Dist: scipy
+Requires-Dist: pandas
+Requires-Dist: matplotlib
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: jupyter; extra == "dev"
+Requires-Dist: ipykernel; extra == "dev"
+
+# Computational Finance Lab
+
+A modular Python project for computational finance and stochastic modelling.
+
+The goal of this project is to refactor verified computational finance implementations into a reusable Python package.
+
+Planned components include:
+
+- Binomial / CRR option pricing
+- Black-Scholes pricing
+- Numerical integration methods
+- Monte Carlo simulation
+- Random number generation methods
+- Barrier options
+- American options
+- Fourier and Laplace transform pricing
+- Implied volatility and calibration
+- Stochastic process simulation

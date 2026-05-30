@@ -1,0 +1,29 @@
+[project]
+name = "comp_fin_lab"
+version = "0.1.0"
+description = "A modular Python library for computational finance and stochastic modelling."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    { name = "Biswajit Palit" }
+]
+dependencies = [
+    "numpy",
+    "scipy",
+    "pandas",
+    "matplotlib"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "jupyter",
+    "ipykernel"
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
