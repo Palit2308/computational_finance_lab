@@ -14,8 +14,5 @@ Planned components include:
 - Barrier options
 - American options
 - Fourier and Laplace transform pricing
-- Characteristic-function based pricing
 - Implied volatility and calibration
 - Stochastic process simulation
-
-Original course notebooks are preserved locally but excluded from the public repository.
