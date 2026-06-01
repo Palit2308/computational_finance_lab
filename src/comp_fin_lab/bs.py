@@ -26,6 +26,10 @@ def eu_bs(t, St, K, T, r, sigma, call):
         Volatility of the underlying stock (annualized).
     call : int
         1 for call option, 0 for put option.
+    
+    Returns:
+    Vt : float
+        The price of the European option at time t.
     """
     d1 = (np.log(St/K)+r*(T-t)+sigma**2/2*(T-t))/(sigma*np.sqrt(T-t))
     d2 = (np.log(St/K)+r*(T-t)-sigma**2/2*(T-t))/(sigma*np.sqrt(T-t))

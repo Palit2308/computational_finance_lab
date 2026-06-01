@@ -34,6 +34,10 @@ def down_and_out_crr(g, S0, K, T, B, r, sigma, M, c=1):
         Number of time steps.
     c : float, optional
         Parameter for anchoring the tree (default is 1).
+    
+    Returns:
+    V0 : float
+        The price of the down-and-out call option at time 0.
     """
 
     delta_t = T/M

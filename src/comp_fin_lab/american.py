@@ -5,9 +5,90 @@ Currently includes valuation of a perpetual American put option
 in the Black-Scholes model.
 """
 
+# Import necessary libraries
+
 import numpy as np
 from scipy.integrate import solve_ivp
 
+
+# American option pricing functions
+
+def am_crr(S_ini, K, T, r, sigma, N, opttype, c=1):
+
+    """
+    Price an American option using a binomial tree.
+
+    Parameters
+    ----------
+    S_ini : float
+        Initial stock price.
+    K : float
+        Strike price.
+    T : float
+        Time to maturity.
+    r : float
+        Risk-free interest rate.
+    sigma : float
+        Volatility.
+    N : int
+        Number of time steps.
+    opttype : str
+        Option type: "C" for call, "P" for put.
+
+    c : float
+        Parameter for anchoring the tree (default is 1).
+    
+    Returns
+    -------
+    price : float
+        Option price at time 0.
+    C : ndarray
+        Matrix of option prices at each node.
+    S : ndarray
+        Matrix of underlying prices at each node.
+    """
+
+    opttype = opttype.upper()
+
+    if opttype not in ["C", "P"]:
+        raise ValueError("opttype must be either 'C' for call or 'P' for put.")
+
+    dt = T / N  # Define time step
+    beta = (c*np.exp(-r*dt) + np.exp((r+sigma**2)*dt))/2
+    u = beta+np.sqrt(beta**2 - c)
+    d = c/u
+    p = (np.exp(r * dt) - d) / (u - d)  # risk neutral probs
+    C = np.zeros([N + 1, N + 1])  # call prices
+    S = np.zeros([N + 1, N + 1])  # underlying price
+
+    for i in range(0, N + 1):
+        S[N, i] = S_ini * (u ** (i)) * (d ** (N - i))
+        if opttype == "C":
+            C[N, i] = np.maximum(S[N, i] - K, 0)
+        else:
+            C[N, i] = np.maximum(K - S[N, i], 0)
+
+    for j in range(N - 1, -1, -1):
+        for i in range(0, j + 1):
+            C[j, i] = np.exp(-r * dt) * (
+                p * C[j + 1, i + 1] + (1 - p) * C[j + 1, i]
+            )  # Computing the European option prices
+            S[j, i] = (
+                S_ini * (u ** (i)) * (d ** (j - i))
+            )  # Underlying evolution for each node
+            if opttype == "C":
+                C[j, i] = np.maximum(
+                    C[j, i], S[j, i] - K
+                )  # Decision between the European option price and the payoff from early-exercise
+            else:
+                C[j, i] = np.maximum(
+                    C[j, i], K - S[j, i]
+                )  # Decision between the European option price and the payoff from early-exercise
+
+    return C[0, 0], C, S
+
+
+#  Perpetual American put option pricing function
 
 def perp_am_put(K, r, sigma, S_min=1e-6, S_max=200, n_grid=200, S_grid=None):
     """

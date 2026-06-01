@@ -17,6 +17,10 @@ def vcall(S,K):
         Underlying asset price at maturity.
     K : float
         Strike price of the option.
+    
+    Returns:
+    payoff : array-like
+        The payoff of the vanilla call option at maturity.
     """
     return np.maximum(S-K,0)
 
@@ -31,6 +35,10 @@ def vput(S,K):
         Underlying asset price at maturity.
     K : float
         Strike price of the option.
+    
+    Returns:
+    payoff : array-like
+        The payoff of the vanilla put option at maturity.
     """
     return np.maximum(K-S,0)
 
@@ -47,6 +55,10 @@ def vopt(S,K,call=True):
         Strike price of the option.
     call : bool, optional
         If True, returns the payoff of a vanilla call option. If False, returns the payoff of a vanilla put option.
+    
+    Returns:
+    payoff : array-like
+        The payoff of the vanilla option at maturity.
     """
     if call:
         return np.maximum(S-K,0)
@@ -66,5 +78,9 @@ def pcall(S, K, alpha):
         Strike price of the option.
     alpha : float
         Power to which the underlying asset price is raised.
+    
+    Returns:
+    payoff : array-like
+        The payoff of the power call option at maturity.
     """
     return np.maximum(S**alpha - K, 0)

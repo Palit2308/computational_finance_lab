@@ -77,6 +77,9 @@ computational_finance_lab/
 │
 ├── tests/
 │   ├── plots/
+│   │   ├── american_crr_convergence.png
+│   │   ├── american_crr_early_exercise_premium.png
+│   │   ├── american_crr_sigma_sensitivity.png
 │   │   ├── bs_crr_anchored_error.png
 │   │   ├── down_and_out_crr_barrier_sensitivity.png
 │   │   ├── eu_crr_sigma_sensitivity_parity.png
@@ -370,7 +373,18 @@ delta = delta_int_sn(
 
 ### `american.py`
 
-Contains valuation of a perpetual American put option in the Black-Scholes model.
+Contains valuation routines for American options.
+
+Currently this module includes:
+
+- A perpetual American put option in the Black-Scholes model
+- A finite-maturity American call/put option using the CRR binomial tree
+
+```python
+from comp_fin_lab.american import perp_am_put, am_crr
+```
+
+Perpetual American put:
 
 ```python
 from comp_fin_lab.american import perp_am_put
@@ -398,6 +412,54 @@ S_grid   -> stock-price grid
 v_grid   -> perpetual American put value on the grid
 x_star   -> optimal exercise boundary
 ```
+
+---
+
+Finite-maturity American option using CRR:
+
+```python
+from comp_fin_lab.american import am_crr
+
+price, C, S = am_crr(
+    S_ini=120,
+    K=100,
+    T=1,
+    r=0.02,
+    sigma=0.3,
+    N=500,
+    opttype="P",
+    c=1,
+)
+```
+
+Available function:
+
+```python
+am_crr(S_ini, K, T, r, sigma, N, opttype, c=1)
+```
+
+where:
+
+```text
+opttype = "C"  -> American call
+opttype = "P"  -> American put
+```
+
+The function returns:
+
+```text
+price   -> American option price at time 0
+C       -> option value tree
+S       -> underlying stock price tree
+```
+
+At each node of the tree, the function compares the continuation value with the immediate exercise value:
+
+```text
+American value = max(continuation value, exercise payoff)
+```
+
+For a non-dividend-paying stock, the American call should be approximately equal to the corresponding European call. The American put can be more valuable than the European put because early exercise may be optimal.
 
 ---
 
@@ -670,7 +732,7 @@ The integration delta and CRR delta are compared against Black-Scholes delta as 
 
 ### `test_american.py`
 
-Tests the perpetual American put implementation.
+1. Tests the perpetual American put implementation.
 
 The function:
 
@@ -708,6 +770,149 @@ tests/plots/perpetual_american_put.png
 ```
 
 This diagnostic illustrates the exercise boundary and the value of early exercise.
+
+2. American CRR vs European CRR test
+
+The function:
+
+```python
+am_crr(...)
+```
+
+returns:
+
+```text
+price
+C
+S
+```
+
+where:
+
+```text
+price   -> American option price at time 0
+C       -> option value tree
+S       -> underlying stock price tree
+```
+
+The script compares American CRR prices with European CRR prices computed using:
+
+```python
+eu_crr(...)
+```
+
+It checks:
+
+- American call values are finite
+- American put values are finite
+- American call price is at least the European call price
+- American put price is at least the European put price
+- For a non-dividend-paying stock, the American call is approximately equal to the European call
+- The returned option-value and stock-price trees have the expected shape
+
+The core financial identity being checked is:
+
+```text
+American option value >= European option value
+```
+
+For a non-dividend-paying stock:
+
+```text
+American call ≈ European call
+```
+
+because early exercise of a call is not optimal without dividends.
+
+For puts:
+
+```text
+American put >= European put
+```
+
+because early exercise may be valuable.
+
+---
+
+3. Convergence over number of binomial steps
+
+The script varies the number of CRR time steps:
+
+```python
+N_values = np.array([5, 10, 25, 50, 100, 200, 500])
+```
+
+For each `N`, it computes:
+
+- American call price
+- European call price
+- American put price
+- European put price
+
+Generated plot:
+
+```text
+tests/plots/american_crr_convergence.png
+```
+
+This diagnostic checks whether the American CRR prices stabilize as the binomial tree becomes finer.
+
+---
+
+4. Volatility sensitivity test
+
+The script varies volatility over a grid:
+
+```python
+sigmas = np.linspace(0.05, 1.0, 100)
+```
+
+For each volatility, it computes:
+
+- American call price
+- European call price
+- American put price
+- European put price
+
+It checks:
+
+- Prices are finite
+- Prices are non-negative
+- American prices dominate European prices
+- American call prices are approximately equal to European call prices in the no-dividend case
+- Option prices generally increase with volatility
+
+Generated plot:
+
+```text
+tests/plots/american_crr_sigma_sensitivity.png
+```
+
+This diagnostic shows how American and European option prices respond to changes in volatility.
+
+---
+
+5. Early exercise premium test
+
+The script computes the early exercise premium:
+
+```text
+American price - European price
+```
+
+for calls and puts.
+
+Generated plot:
+
+```text
+tests/plots/american_crr_early_exercise_premium.png
+```
+
+This diagnostic illustrates that:
+
+- The call early-exercise premium is approximately zero for a non-dividend-paying stock
+- The put early-exercise premium can be positive because early exercise may be optimal 
+
 
 ---
 
