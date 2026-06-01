@@ -13,6 +13,7 @@ The package currently includes:
 - Down-and-out barrier call pricing
 - Pricing by integration under the Black-Scholes model
 - Delta calculations using Black-Scholes, integration, and CRR methods
+- American option valuation in the CRR model
 - Perpetual American put valuation using an ODE/free-boundary approach
 - Test scripts and diagnostic plots for model validation
 
