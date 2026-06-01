@@ -48,7 +48,7 @@ from comp_fin_lab.binom import eu_crr, eu_crr_lattice
 from comp_fin_lab.barriers import down_and_out_crr
 from comp_fin_lab.integration import eu_int_sn
 from comp_fin_lab.greeks import eu_bs_delta, eu_crr_delta, delta_int_sn
-from comp_fin_lab.american import perp_am_put
+from comp_fin_lab.american import perp_am_put, am_crr
 ```
 
 ## 2. Project Structure
