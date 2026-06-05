@@ -15,6 +15,9 @@ The package currently includes:
 - Delta calculations using Black-Scholes, integration, and CRR methods
 - American option valuation in the CRR model
 - Perpetual American put valuation using an ODE/free-boundary approach
+- BS  path simulation
+- BS PDE solver
+- Heston path simulation
 - Test scripts and diagnostic plots for model validation
 
 ---
@@ -186,6 +189,203 @@ where:
 call = 1  -> European call
 call = 0  -> European put
 ```
+
+Simulating stock price paths under the Black-Scholes model:
+
+```python
+from comp_fin_lab.bs import bs_paths
+
+S, S_hat, time_grid = bs_paths(
+    S0=100,
+    r=0.05,
+    sigma=0.3,
+    T=1,
+    M=500,
+    I=10000,
+    seed=42,
+)
+```
+
+The simulation first constructs the discounted stock price process
+
+```text
+S_hat(t) = exp(-rt) S(t)
+```
+
+under the risk-neutral measure, and then undiscounts it internally to obtain the stock price process `S(t)`.
+
+Under the risk-neutral Black-Scholes model:
+
+```text
+dS(t) = r S(t) dt + sigma S(t) dW(t)
+```
+
+The exact solution is:
+
+```text
+S(t) = S0 exp((r - 0.5 sigma^2)t + sigma W(t))
+```
+
+Parameters:
+
+```text
+S0 : float
+    Initial stock price.
+
+r : float
+    Risk-free interest rate.
+
+sigma : float
+    Constant volatility.
+
+T : float
+    Time horizon.
+
+M : int
+    Number of time steps.
+
+I : int
+    Number of simulated paths.
+
+seed : int, optional
+    Random seed for reproducibility.
+```
+
+Returns:
+
+```text
+S : ndarray
+    Undiscounted Black-Scholes stock price paths with shape (M + 1, I).
+
+S_hat : ndarray
+    Discounted stock price paths with shape (M + 1, I).
+
+time_grid : ndarray
+    Time grid with shape (M + 1,).
+```
+
+The discounted process is useful because, under the risk-neutral measure, it should be approximately a martingale:
+
+```text
+E[S_hat(T)] = S0
+```
+
+The undiscounted process should satisfy:
+
+```text
+E[S(T)] = S0 exp(rT)
+```
+
+Black-Scholes PDE approximation : 
+
+```python
+from comp_fin_lab.bs import bs_pde
+
+price, V, S_grid, tau_grid = bs_pde(
+    S0=120,
+    K=100,
+    T=1,
+    r=0.02,
+    sigma=0.3,
+    call=1,
+    S_max=None,
+    S_steps=300,
+    t_steps=20000,
+)
+```
+
+The function prices a European call or put option by solving the Black-Scholes PDE using an explicit finite-difference scheme.
+
+The Black-Scholes PDE is solved in time-to-maturity:
+
+```text
+tau = T - t
+```
+
+The PDE is:
+
+```text
+dV/dtau = 0.5 sigma^2 S^2 d2V/dS2
+          + r S dV/dS
+          - r V
+```
+
+with initial condition at `tau = 0`:
+
+```text
+V(0, S) = payoff(S)
+```
+
+For a call option:
+
+```text
+V(0, S) = max(S - K, 0)
+```
+
+For a put option:
+
+```text
+V(0, S) = max(K - S, 0)
+```
+
+Parameters:
+
+```text
+S0 : float
+    Initial stock price where the option price is evaluated.
+
+K : float
+    Strike price.
+
+T : float
+    Time to maturity.
+
+r : float
+    Risk-free interest rate.
+
+sigma : float
+    Volatility.
+
+call : int
+    1 for call option, 0 for put option.
+
+S_max : float, optional
+    Upper boundary of stock-price grid.
+    If None, set to max(4*K, 4*S0).
+
+S_steps : int, optional
+    Number of stock-price grid steps.
+
+t_steps : int, optional
+    Number of time steps in time-to-maturity.
+```
+
+Returns:
+
+```text
+price : float
+    Interpolated option price at S0.
+
+V : ndarray
+    PDE value grid with shape (t_steps + 1, S_steps + 1).
+    Rows correspond to time-to-maturity tau.
+    Columns correspond to stock-price grid points.
+
+S_grid : ndarray
+    Stock-price grid.
+
+tau_grid : ndarray
+    Time-to-maturity grid.
+```
+
+If `S_max=None`, the upper stock-price boundary is chosen as:
+
+```python
+S_max = max(4 * K, 4 * S0)
+```
+
+Because the method uses an explicit finite-difference scheme, the function includes a practical stability check. If the time step is too large relative to the stock grid size, the function raises a `ValueError` and suggests increasing `t_steps` or reducing `S_steps`.
+
 
 ---
 
@@ -464,6 +664,184 @@ For a non-dividend-paying stock, the American call should be approximately equal
 
 ---
 
+### `heston.py`
+
+Contains Heston stochastic volatility path simulation.
+
+The Heston model is defined in continuous time as:
+
+```text
+dS(t) = r S(t) dt + sqrt(gamma(t)) S(t) dW_S(t)
+
+dgamma(t) = kappa(theta - gamma(t)) dt
+            + sigma sqrt(gamma(t)) dW_gamma(t)
+```
+
+with correlation:
+
+```text
+corr(dW_S(t), dW_gamma(t)) = rho
+```
+
+Here `gamma(t)` is the variance process, and `sqrt(gamma(t))` is the stochastic volatility process.
+
+The module simulates the Heston model on a discrete time grid using:
+
+1. Euler-type discretization for the variance process
+2. Log-Euler discretization for the stock price process
+3. Cholesky decomposition to generate correlated Brownian shocks
+
+Available functions:
+
+```python
+random_number_gen(M, I, seed=None)
+heston_paths(S0, r, gamma0, kappa, theta, sigma, rho, T, M, I, seed=None, rand=None)
+```
+
+Internal helper functions:
+
+```python
+_cholesky_from_rho(rho)
+_sde_gamma(gamma0, kappa, theta, sigma, T, M, I, rand, rho)
+```
+
+Simulating Heston stock price and variance paths: 
+
+```python
+from comp_fin_lab.heston import heston_paths
+
+S, gamma = heston_paths(
+    S0=100,
+    r=0.05,
+    gamma0=0.04,
+    kappa=2,
+    theta=0.04,
+    sigma=0.3,
+    rho=-0.9,
+    T=1,
+    M=500,
+    I=10000,
+    seed=42,
+)
+```
+
+The returned variance paths can be converted into volatility paths by taking the square root:
+
+```python
+V = np.sqrt(gamma)
+```
+
+where:
+
+```text
+gamma(t)        -> variance process
+sqrt(gamma(t)) -> volatility process
+```
+
+Parameters:
+
+```text
+S0 : float
+    Initial stock price.
+
+r : float
+    Risk-free interest rate.
+
+gamma0 : float
+    Initial variance.
+
+kappa : float
+    Speed of mean reversion of the variance process.
+
+theta : float
+    Long-run variance level.
+
+sigma : float
+    Volatility of variance, also called vol-of-vol.
+
+rho : float
+    Correlation between stock and variance Brownian shocks.
+
+T : float
+    Time horizon.
+
+M : int
+    Number of time steps.
+
+I : int
+    Number of simulated paths.
+
+seed : int, optional
+    Random seed for reproducibility.
+
+rand : ndarray, optional
+    Pre-generated independent standard normal shocks with shape (2, M + 1, I).
+    If None, random numbers are generated internally.
+```
+
+Returns:
+
+```text
+S : ndarray
+    Simulated stock price paths with shape (M + 1, I).
+
+gamma : ndarray
+    Simulated variance paths with shape (M + 1, I).
+```
+
+The stock price is simulated using a log-Euler update:
+
+```text
+S(t + dt) = S(t) exp((r - 0.5 gamma(t))dt
+                    + sqrt(gamma(t)) dW_S(t))
+```
+
+The variance process is simulated using an Euler-type update with non-negativity truncation:
+
+```text
+gamma(t + dt) = max(0,
+                    gamma(t)
+                    + kappa(theta - gamma(t))dt
+                    + sigma sqrt(gamma(t)) dW_gamma(t))
+```
+
+The truncation ensures that simulated variance values remain non-negative.
+
+
+Random number generation: 
+
+```python
+from comp_fin_lab.heston import random_number_gen
+
+rand = random_number_gen(
+    M=500,
+    I=10000,
+    seed=42,
+)
+```
+
+This generates independent standard normal shocks with shape:
+
+```text
+(2, M + 1, I)
+```
+
+The first dimension corresponds to the two Brownian shocks:
+
+```text
+row 0 -> stock price shock
+row 1 -> variance shock
+```
+
+The correlation between the two Brownian motions is imposed later using the Cholesky decomposition of the correlation matrix:
+
+```text
+[[1,   rho],
+ [rho, 1  ]]
+```
+
+---
+
 ## 4. Tests and Reproducible Diagnostics
 
 The test files are written as executable Python scripts. They can be run directly.
@@ -622,6 +1000,258 @@ tests/plots/bs_crr_anchored_error.png
 ```
 
 This test checks how well the binomial approximation matches the Black-Scholes benchmark and whether anchoring improves the approximation error.
+
+---
+
+### `test_bs_paths.py`
+
+Tests the Black-Scholes stock-price path simulation function `bs_paths`.
+
+The script uses:
+
+```python
+S0 = 100
+r = 0.05
+sigma = 0.3
+T = 1
+
+M0 = 500
+M = int(M0 * T)
+I = 10000
+
+seed = 42
+```
+
+It simulates paths using:
+
+```python
+S, S_hat, time_grid = bs_paths(
+    S0=S0,
+    r=r,
+    sigma=sigma,
+    T=T,
+    M=M,
+    I=I,
+    seed=seed,
+)
+```
+
+The test checks:
+
+1. The shape of the stock path matrix
+2. The shape of the discounted stock path matrix
+3. The shape of the time grid
+4. That all paths start at `S0`
+5. That all discounted paths start at `S0`
+6. That all simulated values are finite
+7. That stock prices and discounted stock prices remain positive
+8. That the discounted stock price is approximately a martingale
+9. That the undiscounted stock price satisfies the risk-neutral expectation
+10. That terminal log returns have the correct theoretical mean and variance
+11. That the simulation is reproducible when the same seed is used
+
+The key martingale check is:
+
+```text
+E[S_hat(T)] = S0
+```
+
+The test checks this approximately using:
+
+```python
+assert abs(S_hat[-1].mean() - S0) < 1.5
+```
+
+The undiscounted stock price should satisfy:
+
+```text
+E[S(T)] = S0 exp(rT)
+```
+
+The test checks this approximately using:
+
+```python
+assert abs(S[-1].mean() - S0 * np.exp(r * T)) < 2.0
+```
+
+The terminal log returns should satisfy:
+
+```text
+log(S(T) / S0) ~ N((r - 0.5 sigma^2)T, sigma^2 T)
+```
+
+The test compares the sample mean and variance of terminal log returns against:
+
+```python
+theoretical_mean = (r - 0.5 * sigma**2) * T
+theoretical_var = sigma**2 * T
+```
+
+Generated plots:
+
+```text
+plots/bs_stock_and_discounted_paths.png
+plots/bs_terminal_log_return_distribution.png
+```
+
+The first plot shows simulated Black-Scholes stock price paths and discounted stock price paths.
+
+The second plot shows the terminal log-return distribution, together with the theoretical mean and sample mean.
+
+This test checks whether the simulated Black-Scholes paths have the correct risk-neutral expectation, martingale property, terminal distribution, and reproducibility.
+
+---
+
+### `test_bs_pde.py`
+
+Tests the Black-Scholes PDE solver `bs_pde`.
+
+The script uses:
+
+```python
+S0 = 120
+K = 100
+T = 1
+r = 0.02
+sigma = 0.3
+
+S_max = max(4 * K, 4 * S0)
+S_steps = 300
+t_steps = 20000
+```
+
+First, the script computes a European call price using the PDE solver:
+
+```python
+call_pde, V_call, S_grid, tau_grid = bs_pde(
+    S0=S0,
+    K=K,
+    T=T,
+    r=r,
+    sigma=sigma,
+    call=1,
+    S_max=S_max,
+    S_steps=S_steps,
+    t_steps=t_steps,
+)
+```
+
+It also computes a European put price:
+
+```python
+put_pde, V_put, _, _ = bs_pde(
+    S0=S0,
+    K=K,
+    T=T,
+    r=r,
+    sigma=sigma,
+    call=0,
+    S_max=S_max,
+    S_steps=S_steps,
+    t_steps=t_steps,
+)
+```
+
+The PDE prices are compared against analytical Black-Scholes prices from `eu_bs`:
+
+```python
+call_bs = eu_bs(
+    t=0,
+    St=S0,
+    K=K,
+    T=T,
+    r=r,
+    sigma=sigma,
+    call=1,
+)
+
+put_bs = eu_bs(
+    t=0,
+    St=S0,
+    K=K,
+    T=T,
+    r=r,
+    sigma=sigma,
+    call=0,
+)
+```
+
+The test checks:
+
+1. PDE call and put prices are finite
+2. Black-Scholes call and put prices are finite
+3. PDE prices are non-negative
+4. PDE prices are close to the analytical Black-Scholes benchmark
+5. The PDE value grids have the correct shape
+6. The stock-price grid has the correct shape
+7. The time-to-maturity grid has the correct shape
+8. All PDE grid values are finite
+9. The initial condition at `tau = 0` equals the payoff
+10. Boundary conditions are correctly imposed
+11. PDE price curves are close to Black-Scholes price curves in the central stock-price region
+12. Pricing errors decrease as the stock grid becomes finer
+
+Because the explicit finite-difference PDE method is an approximation, the single-price comparison uses a moderate tolerance:
+
+```python
+assert call_error < 0.25
+assert put_error < 0.25
+```
+
+The curve comparison avoids `S = 0` because the Black-Scholes closed form contains `log(S/K)`.
+
+The central region is defined as:
+
+```python
+central_mask = (S_eval >= 0.25 * K) & (S_eval <= 3.0 * K)
+```
+
+The mean absolute pricing error in this region is checked using:
+
+```python
+assert call_abs_error_curve[central_mask].mean() < 0.20
+assert put_abs_error_curve[central_mask].mean() < 0.20
+```
+
+The convergence test uses:
+
+```python
+S_steps_values = np.array([50, 100, 200, 300])
+```
+
+For each stock grid size, the number of time steps is chosen automatically so that the explicit scheme remains stable:
+
+```python
+t_steps_j = int(
+    max(
+        2000,
+        np.ceil(3 * T * (sigma**2 * s_steps**2 + abs(r))),
+    )
+)
+```
+
+The test then checks that the finest grid is more accurate than the coarsest grid:
+
+```python
+assert call_errors[-1] < call_errors[0]
+assert put_errors[-1] < put_errors[0]
+```
+
+Generated plots:
+
+```text
+tests/plots/bs_pde_vs_black_scholes_prices.png
+tests/plots/bs_pde_absolute_pricing_error.png
+tests/plots/bs_pde_convergence.png
+```
+
+The first plot compares PDE and Black-Scholes price curves for calls and puts.
+
+The second plot shows the absolute pricing error over the stock-price grid.
+
+The third plot shows convergence as the number of stock grid steps increases.
+
+This test checks whether the explicit finite-difference approximation solves the Black-Scholes PDE correctly and whether it converges toward the closed-form Black-Scholes benchmark.
 
 ---
 
@@ -914,8 +1544,128 @@ This diagnostic illustrates that:
 - The call early-exercise premium is approximately zero for a non-dividend-paying stock
 - The put early-exercise premium can be positive because early exercise may be optimal 
 
+---
+
+### `test_heston_paths.py`
+
+Tests the Heston stochastic volatility path simulation function `heston_paths`.
+
+The script uses:
+
+```python
+gamma0 = 0.04
+kappa = 2
+sigma = 0.3
+theta = 0.04
+rho = -0.9
+
+S0 = 100
+r = 0.05
+T = 1
+
+M0 = 500
+M = int(M0 * T)
+I = 10000
+
+seed = 42
+```
+
+It simulates Heston paths using:
+
+```python
+S, gamma = heston_paths(
+    S0=S0,
+    r=r,
+    gamma0=gamma0,
+    kappa=kappa,
+    theta=theta,
+    sigma=sigma,
+    rho=rho,
+    T=T,
+    M=M,
+    I=I,
+    seed=seed,
+)
+```
+
+The variance process is converted into volatility using:
+
+```python
+V = np.sqrt(gamma)
+```
+
+The test checks:
+
+1. The shape of the stock price path matrix
+2. The shape of the variance path matrix
+3. The shape of the volatility path matrix
+4. That all stock paths start at `S0`
+5. That all variance paths start at `gamma0`
+6. That all volatility paths start at `sqrt(gamma0)`
+7. That all simulated stock prices are finite
+8. That all simulated variance values are finite
+9. That all simulated volatility values are finite
+10. That stock prices remain positive under the log-Euler update
+11. That variance values remain non-negative because of the truncation scheme
+12. That volatility values are non-negative
+13. That the simulation is reproducible when the same seed is used
+
+The key initial condition checks are:
+
+```python
+assert np.allclose(S[0], S0)
+assert np.allclose(gamma[0], gamma0)
+assert np.allclose(V[0], np.sqrt(gamma0))
+```
+
+The key positivity checks are:
+
+```python
+assert np.all(S > 0)
+assert np.all(gamma >= 0)
+assert np.all(V >= 0)
+```
+
+The reproducibility check reruns the simulation with the same seed:
+
+```python
+S_same, gamma_same = heston_paths(
+    S0=S0,
+    r=r,
+    gamma0=gamma0,
+    kappa=kappa,
+    theta=theta,
+    sigma=sigma,
+    rho=rho,
+    T=T,
+    M=M,
+    I=I,
+    seed=seed,
+)
+```
+
+and verifies:
+
+```python
+assert np.allclose(S, S_same)
+assert np.allclose(gamma, gamma_same)
+```
+
+Generated plot:
+
+```text
+plots/heston_price_and_volatility_paths.png
+```
+
+The plot shows:
+
+1. Simulated Heston stock price paths
+2. Simulated Heston volatility paths
+
+This test checks whether the Heston simulation produces valid stock, variance, and volatility paths, preserves the correct initial conditions, enforces non-negative variance, and gives reproducible results when a fixed random seed is used.
 
 ---
+
 
 ## 6. Generated Plots
 
