@@ -1,7 +1,8 @@
 import numpy as np
-
+import os
+import matplotlib.pyplot as plt
 from comp_fin_lab.payoffs import vcall, vput
-from comp_fin_lab.greeks import eu_crr_delta, eu_bs_delta, delta_int_sn
+from comp_fin_lab.greeks import eu_crr_delta, eu_bs_delta, delta_int_sn, delta_eu_lap, delta_eu_lap_heston, delta_eu_lap_bs
 
 
 # --------------------------------------------------
@@ -172,3 +173,291 @@ assert abs((call_delta_crr - put_delta_crr) - 1) < 5e-3
 
 
 print("\nDelta test passed.")
+
+# --------------------------------------------------
+# Laplace delta tests and plots: Black-Scholes and Heston
+# --------------------------------------------------
+
+K_arr = np.linspace(50, 300, 100)
+
+R_call = 2
+R_put = -1
+
+gam0 = 0.3**2
+kappa_heston = 0.3**2
+lamb_heston = 2.5
+sig_tilde_heston = 0.3
+rho_heston = -0.5
+
+
+# --------------------------------------------------
+# Black-Scholes deltas by Laplace inversion
+# --------------------------------------------------
+
+call_delta_bs_lap = delta_eu_lap(
+    delta_eu_lap_bs,
+    K_arr,
+    R_call,
+    S0,
+    t,
+    T,
+    r,
+    sigma,
+)
+
+put_delta_bs_lap = delta_eu_lap(
+    delta_eu_lap_bs,
+    K_arr,
+    R_put,
+    S0,
+    t,
+    T,
+    r,
+    sigma,
+)
+
+
+# --------------------------------------------------
+# Black-Scholes closed-form benchmark deltas
+# --------------------------------------------------
+
+call_delta_bs_closed = np.array(
+    [
+        eu_bs_delta(
+            t=t,
+            St=S0,
+            K=K_i,
+            T=T,
+            r=r,
+            sigma=sigma,
+            call=1,
+        )
+        for K_i in K_arr
+    ]
+)
+
+put_delta_bs_closed = np.array(
+    [
+        eu_bs_delta(
+            t=t,
+            St=S0,
+            K=K_i,
+            T=T,
+            r=r,
+            sigma=sigma,
+            call=0,
+        )
+        for K_i in K_arr
+    ]
+)
+
+
+# --------------------------------------------------
+# Black-Scholes Laplace delta checks
+# --------------------------------------------------
+
+assert call_delta_bs_lap.shape == K_arr.shape
+assert put_delta_bs_lap.shape == K_arr.shape
+
+assert np.all(np.isfinite(call_delta_bs_lap))
+assert np.all(np.isfinite(put_delta_bs_lap))
+
+assert np.all(call_delta_bs_lap >= -1e-8)
+assert np.all(call_delta_bs_lap <= 1 + 1e-8)
+
+assert np.all(put_delta_bs_lap >= -1 - 1e-8)
+assert np.all(put_delta_bs_lap <= 1e-8)
+
+assert np.all(np.diff(call_delta_bs_lap) <= 1e-6)
+assert np.all(np.diff(put_delta_bs_lap) <= 1e-6)
+
+bs_call_delta_error = np.max(np.abs(call_delta_bs_lap - call_delta_bs_closed))
+bs_put_delta_error = np.max(np.abs(put_delta_bs_lap - put_delta_bs_closed))
+
+assert bs_call_delta_error < 1e-4
+assert bs_put_delta_error < 1e-4
+
+bs_delta_parity_error = np.max(
+    np.abs((call_delta_bs_lap - put_delta_bs_lap) - 1)
+)
+
+assert bs_delta_parity_error < 1e-4
+
+
+# --------------------------------------------------
+# Heston deltas by Laplace inversion
+# --------------------------------------------------
+
+call_delta_heston_lap = delta_eu_lap(
+    delta_eu_lap_heston,
+    K_arr,
+    R_call,
+    S0,
+    t,
+    T,
+    r,
+    gam0,
+    kappa_heston,
+    lamb_heston,
+    sig_tilde_heston,
+    rho_heston,
+)
+
+put_delta_heston_lap = delta_eu_lap(
+    delta_eu_lap_heston,
+    K_arr,
+    R_put,
+    S0,
+    t,
+    T,
+    r,
+    gam0,
+    kappa_heston,
+    lamb_heston,
+    sig_tilde_heston,
+    rho_heston,
+)
+
+
+# --------------------------------------------------
+# Heston Laplace delta checks
+# --------------------------------------------------
+
+assert call_delta_heston_lap.shape == K_arr.shape
+assert put_delta_heston_lap.shape == K_arr.shape
+
+assert np.all(np.isfinite(call_delta_heston_lap))
+assert np.all(np.isfinite(put_delta_heston_lap))
+
+assert np.all(call_delta_heston_lap >= -1e-6)
+assert np.all(call_delta_heston_lap <= 1 + 1e-6)
+
+assert np.all(put_delta_heston_lap >= -1 - 1e-6)
+assert np.all(put_delta_heston_lap <= 1e-6)
+
+assert np.all(np.diff(call_delta_heston_lap) <= 1e-5)
+assert np.all(np.diff(put_delta_heston_lap) <= 1e-5)
+
+heston_delta_parity_error = np.max(
+    np.abs((call_delta_heston_lap - put_delta_heston_lap) - 1)
+)
+
+assert heston_delta_parity_error < 1e-4
+
+
+# --------------------------------------------------
+# Create plots folder in current directory
+# --------------------------------------------------
+
+plot_dir = os.path.join(os.getcwd(), "plots")
+os.makedirs(plot_dir, exist_ok=True)
+
+
+# --------------------------------------------------
+# Plot Black-Scholes call delta
+# --------------------------------------------------
+
+plt.figure(figsize=(8, 5))
+
+plt.plot(K_arr, call_delta_bs_lap, label="BS call delta by Laplace")
+plt.plot(K_arr, call_delta_bs_closed, linestyle="--", label="BS closed-form call delta")
+
+plt.xlabel("Strike values")
+plt.ylabel("Delta")
+plt.title("Black-Scholes Call Delta vs Strike using Laplace Inversion")
+plt.grid(alpha=0.3)
+plt.legend()
+
+save_path_bs_call_delta = os.path.join(plot_dir, "bs_laplace_call_delta.png")
+plt.savefig(save_path_bs_call_delta, dpi=300, bbox_inches="tight")
+plt.close()
+
+
+# --------------------------------------------------
+# Plot Black-Scholes put delta
+# --------------------------------------------------
+
+plt.figure(figsize=(8, 5))
+
+plt.plot(K_arr, put_delta_bs_lap, label="BS put delta by Laplace")
+plt.plot(K_arr, put_delta_bs_closed, linestyle="--", label="BS closed-form put delta")
+
+plt.xlabel("Strike values")
+plt.ylabel("Delta")
+plt.title("Black-Scholes Put Delta vs Strike using Laplace Inversion")
+plt.grid(alpha=0.3)
+plt.legend()
+
+save_path_bs_put_delta = os.path.join(plot_dir, "bs_laplace_put_delta.png")
+plt.savefig(save_path_bs_put_delta, dpi=300, bbox_inches="tight")
+plt.close()
+
+
+# --------------------------------------------------
+# Plot Heston call delta
+# --------------------------------------------------
+
+plt.figure(figsize=(8, 5))
+
+plt.plot(K_arr, call_delta_heston_lap, label="Heston call delta by Laplace")
+
+plt.xlabel("Strike values")
+plt.ylabel("Delta")
+plt.title("Heston Call Delta vs Strike using Laplace Inversion")
+plt.grid(alpha=0.3)
+plt.legend()
+
+save_path_heston_call_delta = os.path.join(plot_dir, "heston_laplace_call_delta.png")
+plt.savefig(save_path_heston_call_delta, dpi=300, bbox_inches="tight")
+plt.close()
+
+
+# --------------------------------------------------
+# Plot Heston put delta
+# --------------------------------------------------
+
+plt.figure(figsize=(8, 5))
+
+plt.plot(K_arr, put_delta_heston_lap, label="Heston put delta by Laplace")
+
+plt.xlabel("Strike values")
+plt.ylabel("Delta")
+plt.title("Heston Put Delta vs Strike using Laplace Inversion")
+plt.grid(alpha=0.3)
+plt.legend()
+
+save_path_heston_put_delta = os.path.join(plot_dir, "heston_laplace_put_delta.png")
+plt.savefig(save_path_heston_put_delta, dpi=300, bbox_inches="tight")
+plt.close()
+
+
+# --------------------------------------------------
+# Diagnostics
+# --------------------------------------------------
+
+print("\nLaplace delta checks")
+
+print("Black-Scholes Laplace call delta min:", call_delta_bs_lap.min())
+print("Black-Scholes Laplace call delta max:", call_delta_bs_lap.max())
+
+print("Black-Scholes Laplace put delta min: ", put_delta_bs_lap.min())
+print("Black-Scholes Laplace put delta max: ", put_delta_bs_lap.max())
+
+print("BS max call delta error vs closed form:", bs_call_delta_error)
+print("BS max put delta error vs closed form: ", bs_put_delta_error)
+print("BS Laplace delta parity error:         ", bs_delta_parity_error)
+
+print("\nHeston Laplace call delta min:", call_delta_heston_lap.min())
+print("Heston Laplace call delta max:", call_delta_heston_lap.max())
+
+print("Heston Laplace put delta min: ", put_delta_heston_lap.min())
+print("Heston Laplace put delta max: ", put_delta_heston_lap.max())
+
+print("Heston Laplace delta parity error:", heston_delta_parity_error)
+
+print(f"\nBS call delta plot saved to: {save_path_bs_call_delta}")
+print(f"BS put delta plot saved to: {save_path_bs_put_delta}")
+print(f"Heston call delta plot saved to: {save_path_heston_call_delta}")
+print(f"Heston put delta plot saved to: {save_path_heston_put_delta}")
+
+print("\nLaplace delta plots saved.")

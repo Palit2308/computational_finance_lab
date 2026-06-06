@@ -30,3 +30,6 @@ build/
 
 # Test/cache files
 .pytest_cache/
+
+# Plots
+tests/plots/
